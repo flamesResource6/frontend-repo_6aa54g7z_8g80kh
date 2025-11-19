@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, collection, query, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp, getDoc } from 'firebase/firestore';
 
 // --- CONFIGURATION AND DUMMY DATA ---
 
@@ -14,7 +14,7 @@ const ALL_TEAMS = [
   { id: 'JJ', name: 'Jaipur Jewels', color: 'bg-pink-700', text: 'text-pink-100', accent: 'border-pink-500', motto: 'The Gemstone of the West' },
   { id: 'MM', name: 'Mumbai Mavericks', color: 'bg-blue-700', text: 'text-blue-100', accent: 'border-blue-500', motto: 'The Champions of the Harbor' },
   { id: 'AA', name: 'Ahmedabad Aces', color: 'bg-orange-700', text: 'text-orange-100', accent: 'border-orange-500', motto: 'The Diamond City Strikers' },
-  { id: 'DD', name: 'Delhi Dynamos', color: 'bg-red-700', text: 'text-red-100', accent: 'border-red-500', motto: 'The Empire\'s Might' },
+  { id: 'DD', name: 'Delhi Dynamos', color: 'bg-red-700', text: 'text-red-100', accent: 'border-red-500', motto: "The Empire's Might" },
   { id: 'KK', name: 'Kolkata Knights', color: 'bg-purple-700', text: 'text-purple-100', accent: 'border-purple-500', motto: 'The Royal Bengal Tigers' },
   { id: 'BB', name: 'Bangalore Braves', color: 'bg-green-700', text: 'text-green-100', accent: 'border-green-500', motto: 'The Silicon Stunners' },
 ];
@@ -97,7 +97,7 @@ const FirebaseProvider = ({ children }) => {
 
     useEffect(() => {
         if (!firebaseConfig) {
-            console.error("Firebase config not found. Running in demo mode.");
+            console.error('Firebase config not found. Running in demo mode.');
             setIsAuthReady(true); // Allow component to render in demo mode
             return;
         }
@@ -111,7 +111,7 @@ const FirebaseProvider = ({ children }) => {
             setAuth(authentication);
             setDoc(doc(firestore, 'debug', appId), {
                 log: 'App initialized',
-                timestamp: serverTimestamp()
+                timestamp: serverTimestamp(),
             }, { merge: true });
 
             const unsubscribe = onAuthStateChanged(authentication, (user) => {
@@ -119,11 +119,10 @@ const FirebaseProvider = ({ children }) => {
                     setUserId(user.uid);
                     setIsAuthReady(true);
                 } else {
-                    // If user is not yet logged in, sign in anonymously or with token
                     if (initialAuthToken) {
                         signInWithCustomToken(authentication, initialAuthToken)
                             .catch(e => {
-                                console.error("Error signing in with custom token. Falling back to anonymous:", e);
+                                console.error('Error signing in with custom token. Falling back to anonymous:', e);
                                 signInAnonymously(authentication);
                             });
                     } else {
@@ -134,7 +133,7 @@ const FirebaseProvider = ({ children }) => {
 
             return () => unsubscribe();
         } catch (error) {
-            console.error("Failed to initialize Firebase:", error);
+            console.error('Failed to initialize Firebase:', error);
             setIsAuthReady(true);
         }
     }, []);
@@ -149,6 +148,32 @@ const FirebaseProvider = ({ children }) => {
 const useFirebase = () => React.useContext(FirebaseContext);
 
 // --- FIREBASE DATA HOOKS ---
+
+// Hook for Live Match Feed (Public)
+const useLiveMatchFeed = (matchId) => {
+    const { db, isAuthReady } = useFirebase();
+    const [feed, setFeed] = useState(null);
+
+    const feedPath = useMemo(() => `artifacts/${appId}/public/data/liveMatchFeed/${matchId}`, [matchId]);
+
+    useEffect(() => {
+        if (!db || !isAuthReady) return;
+        const ref = doc(db, feedPath);
+        const unsub = onSnapshot(ref, (snap) => {
+            if (snap.exists()) setFeed(snap.data());
+            else setFeed(null);
+        }, (err) => console.error('Live feed error:', err));
+        return () => unsub();
+    }, [db, isAuthReady, feedPath]);
+
+    const pushUpdate = useCallback(async (data) => {
+        if (!db) throw new Error('Database not ready');
+        const ref = doc(db, feedPath);
+        await setDoc(ref, { ...data, serverTimestamp: serverTimestamp() }, { merge: true });
+    }, [db, feedPath]);
+
+    return { feed, pushUpdate };
+};
 
 // Hook for fetching and updating fantasy team (Private Data)
 const useFantasyTeam = () => {
@@ -172,7 +197,6 @@ const useFantasyTeam = () => {
 
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-                // Ensure team is an array of player objects (necessary if playerList is an array)
                 const storedTeam = docSnap.data().team;
                 if (storedTeam && storedTeam.players) {
                     setFantasyTeam(storedTeam);
@@ -184,7 +208,7 @@ const useFantasyTeam = () => {
             }
             setIsLoading(false);
         }, (error) => {
-            console.error("Error fetching fantasy team:", error);
+            console.error('Error fetching fantasy team:', error);
             setIsLoading(false);
         });
 
@@ -193,7 +217,7 @@ const useFantasyTeam = () => {
 
     const saveTeam = useCallback(async (teamData) => {
         if (!db || !fantasyTeamPath) {
-            console.error("Cannot save team: Database or user ID not ready.");
+            console.error('Cannot save team: Database or user ID not ready.');
             return false;
         }
         try {
@@ -201,7 +225,7 @@ const useFantasyTeam = () => {
             await setDoc(docRef, { team: teamData, lastUpdated: serverTimestamp() }, { merge: true });
             return true;
         } catch (error) {
-            console.error("Error saving fantasy team:", error);
+            console.error('Error saving fantasy team:', error);
             return false;
         }
     }, [db, fantasyTeamPath]);
@@ -236,7 +260,7 @@ const useMatchVotes = (matchId) => {
                 }
             }
         }, (error) => {
-            console.error("Error fetching match votes:", error);
+            console.error('Error fetching match votes:', error);
         });
 
         return () => unsubscribe();
@@ -244,7 +268,6 @@ const useMatchVotes = (matchId) => {
 
     const castVote = useCallback(async (type, option) => {
         if (!db || !userId) {
-            // Using a simple alert since custom modal UI is more complex
             console.warn('Authentication is required to vote.');
             return;
         }
@@ -253,46 +276,43 @@ const useMatchVotes = (matchId) => {
         const docRef = doc(db, docPath);
 
         try {
-            // Check if user has already voted to prevent double voting
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.userVotes && data.userVotes[userId] && data.userVotes[userId][type]) {
                     console.log(`User already voted for ${type}.`);
-                    return; // Stop execution if user already voted
+                    return;
                 }
             }
             
             await setDoc(docRef, {
-                [fieldPath]: (fanPolls[type][option] || 0) + 1, // Increment vote count
-                [userPath]: { ...userVote, [type]: option, votedAt: serverTimestamp() }, // Update user's vote
-                lastUpdated: serverTimestamp()
+                [fieldPath]: (fanPolls[type][option] || 0) + 1,
+                [userPath]: { ...userVote, [type]: option, votedAt: serverTimestamp() },
+                lastUpdated: serverTimestamp(),
             }, { merge: true });
 
             setUserVote(prev => ({ ...prev, [type]: option }));
 
         } catch (error) {
-            console.error("Error casting vote:", error);
+            console.error('Error casting vote:', error);
         }
     }, [db, docPath, userId, fanPolls, userVote]);
 
     return { fanPolls, userVote, castVote };
 };
 
-
 // --- PRESENTATION COMPONENTS ---
 
-const Header = ({ currentView, setView, isAuthReady, userId }) => {
+const Header = ({ currentView, setView, isAuthReady, userId, adminMode, setAdminMode }) => {
     const navItems = [
         { name: 'Live Match', view: 'LIVE' },
         { name: 'Fantasy Hub', view: 'FANTASY' },
-        { name: 'Teams', view: 'TEAMS' }, // Added Teams view
+        { name: 'Teams', view: 'TEAMS' },
         { name: 'Schedule', view: 'SCHEDULE' },
         { name: 'Stats', view: 'STATS' },
         { name: 'News', view: 'NEWS' },
     ];
     
-    // Display full userId for multi-user purposes
     const displayUserId = userId || 'Authenticating...';
 
     return (
@@ -300,11 +320,20 @@ const Header = ({ currentView, setView, isAuthReady, userId }) => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center py-3">
                     <h1 className="text-2xl font-black text-white tracking-wider">JPL <span className="text-yellow-400">9</span></h1>
-                    <div className="flex flex-col items-end text-xs text-gray-400">
-                        <span className="mb-1">{isAuthReady ? 'Authenticated' : 'Connecting...'}</span>
-                        <span className="p-1 px-3 bg-gray-700 rounded-full text-xs break-all" title={userId}>
-                            User ID: <span className="text-yellow-400 font-mono">{displayUserId}</span>
-                        </span>
+                    <div className="flex items-center gap-3">
+                        <div className="hidden sm:flex flex-col items-end text-xs text-gray-400">
+                            <span className="mb-1">{isAuthReady ? 'Authenticated' : 'Connecting...'}</span>
+                            <span className="p-1 px-3 bg-gray-700 rounded-full text-xs break-all" title={userId}>
+                                User ID: <span className="text-yellow-400 font-mono">{displayUserId}</span>
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => setAdminMode(m => !m)}
+                            className={`px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg border transition ${adminMode ? 'bg-yellow-500 text-gray-900 border-yellow-400' : 'bg-gray-700 text-white border-gray-600 hover:bg-gray-600'}`}
+                            title="Toggle Admin Mode"
+                        >
+                            {adminMode ? 'Admin: ON' : 'Admin: OFF'}
+                        </button>
                     </div>
                 </div>
                 <nav className="flex space-x-4 overflow-x-auto pb-2 -mb-2">
@@ -339,7 +368,6 @@ const LiveScoreboard = ({ score, match }) => {
     const battingWickets = isSecondInnings ? score.wicketsB : score.wicketsA;
     const battingOvers = isSecondInnings ? score.oversB : score.oversA;
 
-    // Simulation of current players
     const currentBatsman = isSecondInnings ? 'M. Gandhi' : 'A. Shah';
     const currentBowler = isSecondInnings ? 'J. Kothari' : 'S. Patni';
     const lastBallText = score.lastBall === 4 ? 'FOUR!' : score.lastBall === 6 ? 'SIX!' : score.lastBall === 0 ? 'Dot' : score.lastBall > 0 ? `${score.lastBall} Run` : 'WICKET!';
@@ -570,12 +598,32 @@ const TeamsListView = ({ setSelectedTeamId }) => (
     </div>
 );
 
-
 // --- OTHER VIEWS ---
 
-const LiveMatchView = ({ score, match }) => (
+const LiveFeedPanel = ({ feed }) => {
+    if (!feed) return null;
+    return (
+        <div className="bg-gray-800 p-4 rounded-lg shadow-lg border border-yellow-500">
+            <h3 className="text-lg font-semibold text-yellow-400 mb-3">Live Feed (Firestore)</h3>
+            <div className="grid sm:grid-cols-3 gap-3 text-sm text-gray-200">
+                <div>Score: <span className="font-bold">{feed.score ?? '-'}</span></div>
+                <div>Wickets: <span className="font-bold">{feed.wickets ?? '-'}</span></div>
+                <div>Overs: <span className="font-bold">{(feed.overs ?? 0).toFixed ? feed.overs.toFixed(1) : feed.overs}</span></div>
+                <div>Target: <span className="font-bold">{feed.target ?? '-'}</span></div>
+                <div>Innings: <span className="font-bold">{feed.innings ?? '-'}</span></div>
+                <div>Last Ball: <span className="font-bold">{feed.lastBall ?? '-'}</span></div>
+            </div>
+            {feed.lastCommentary && (
+                <div className="mt-3 text-gray-300 italic">{feed.lastCommentary}</div>
+            )}
+        </div>
+    );
+};
+
+const LiveMatchView = ({ score, match, liveFeed }) => (
     <div className="space-y-8">
         <LiveScoreboard score={score} match={match} />
+        {liveFeed && <LiveFeedPanel feed={liveFeed} />}
         <p className="text-gray-400 text-sm">{match.toss}</p>
         <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
@@ -618,7 +666,6 @@ const FantasyHubView = ({ playerList, setPlayerList }) => {
             setTeamName(fantasyTeam.name);
             setPlayerList(fantasyTeam.players);
         } else {
-            // Reset to initial if no saved team
             setPlayerList(initialPlayerList.map(p => ({ ...p, selected: 0 })));
             setTeamName('My JPL XI');
         }
@@ -652,18 +699,14 @@ const FantasyHubView = ({ playerList, setPlayerList }) => {
             if (!targetPlayer || targetPlayer.selected !== 1) return prevList;
 
             if (targetPlayer.role === role) {
-                // Remove role if clicked again
                 targetPlayer.role = initialPlayerList.find(p => p.id === id).role;
             } else {
-                // Assign new role (CAP or VC)
-                // Clear the existing CAP or VC
                 newPlayers = newPlayers.map(p => {
                     if (p.role === role) {
                         return { ...p, role: initialPlayerList.find(i => i.id === p.id).role };
                     }
                     return p;
                 });
-                // Assign the new role
                 newPlayers.find(p => p.id === id).role = role;
             }
 
@@ -675,21 +718,17 @@ const FantasyHubView = ({ playerList, setPlayerList }) => {
     const totalCreditsSpent = selectedPlayers.reduce((sum, p) => sum + p.credit, 0).toFixed(1);
     const remainingCredits = (maxCredits - totalCreditsSpent).toFixed(1);
 
-    // FLAMES AI C/VC SUGGESTION LOGIC (based on Form score)
     const aiCvcSuggestion = useMemo(() => {
         const eligiblePlayers = selectedPlayers.filter(p => p.role !== 'CAP' && p.role !== 'VC');
         if (eligiblePlayers.length < 2) return { cap: 'N/A', vc: 'N/A' };
 
         const sortedByForm = [...eligiblePlayers].sort((a, b) => b.form - a.form);
-
-        // Captain is the highest performer
         const cap = sortedByForm[0];
-        // VC is the second highest performer
         const vc = sortedByForm[1];
 
         return {
             cap: cap ? cap.name : 'N/A',
-            vc: vc ? vc.name : 'N/A'
+            vc: vc ? vc.name : 'N/A',
         };
     }, [selectedPlayers]);
 
@@ -718,7 +757,7 @@ const FantasyHubView = ({ playerList, setPlayerList }) => {
     };
 
     const smartFillTeam = () => {
-        const sortedPlayers = [...playerList].sort((a, b) => b.form - a.form); // Sort by form (AI Heuristic)
+        const sortedPlayers = [...playerList].sort((a, b) => b.form - a.form);
         const newTeam = playerList.map(p => ({ ...p, selected: 0 }));
         let currentCredits = 0;
         let selectedCount = 0;
@@ -875,7 +914,6 @@ const StatsView = () => (
     <div className="space-y-8">
         <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">Statistics Hub</h2>
         
-        {/* Points Table */}
         <div className="bg-gray-800 p-4 rounded-xl shadow-lg overflow-x-auto">
             <h3 className="text-xl font-semibold text-yellow-400 mb-4">Points Table</h3>
             <table className="min-w-full text-left text-sm text-gray-300">
@@ -904,7 +942,6 @@ const StatsView = () => (
             </table>
         </div>
 
-        {/* Leaderboards */}
         <div className="grid md:grid-cols-2 gap-6">
             <Leaderboard title="Orange Cap (Most Runs)" data={DUMMY_CAPS.orange} valueKey="runs" unit="Runs" capColor="bg-orange-500" />
             <Leaderboard title="Purple Cap (Most Wickets)" data={DUMMY_CAPS.purple} valueKey="wickets" unit="Wickets" capColor="bg-purple-500" />
@@ -935,10 +972,10 @@ const NewsView = () => (
         <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">Official JPL News & Editorials</h2>
         <div className="grid md:grid-cols-2 gap-6">
             {[
-                { title: "Exclusive Interview: J. Kothari on Team Balance", excerpt: "The star all-rounder discusses the team's strategy and the challenges of a packed season.", color: 'bg-pink-700' },
-                { title: "Match Report: Mumbai Mavericks Secure Top Spot", excerpt: "A deep dive into how MM defended a low total against Ahmedabad Aces to solidify their lead.", color: 'bg-blue-700' },
-                { title: "FLAMES AI Feature: Predicting the Playoff Picture", excerpt: "Our analytics engine breaks down the probability of each team making it to the final four.", color: 'bg-orange-700' },
-                { title: "Gallery: Top Catches of the Week", excerpt: "Relive the stunning fielding moments from the last seven days of JPL action.", color: 'bg-red-700' },
+                { title: 'Exclusive Interview: J. Kothari on Team Balance', excerpt: "The star all-rounder discusses the team's strategy and the challenges of a packed season.", color: 'bg-pink-700' },
+                { title: 'Match Report: Mumbai Mavericks Secure Top Spot', excerpt: 'A deep dive into how MM defended a low total against Ahmedabad Aces to solidify their lead.', color: 'bg-blue-700' },
+                { title: 'FLAMES AI Feature: Predicting the Playoff Picture', excerpt: 'Our analytics engine breaks down the probability of each team making it to the final four.', color: 'bg-orange-700' },
+                { title: 'Gallery: Top Catches of the Week', excerpt: 'Relive the stunning fielding moments from the last seven days of JPL action.', color: 'bg-red-700' },
             ].map((article, index) => (
                 <div key={index} className={`rounded-xl shadow-xl overflow-hidden ${article.color}`}>
                     <div className="p-4">
@@ -952,6 +989,40 @@ const NewsView = () => (
     </div>
 );
 
+// --- ADMIN PANEL ---
+const AdminControlPanel = ({ matchId, onPush, disabledReason }) => {
+    const [form, setForm] = useState({ score: 0, wickets: 0, overs: 0, target: 0, innings: 1, lastBall: 0, lastCommentary: '' });
+
+    const setField = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+    return (
+        <div className="fixed bottom-4 right-4 z-20 w-[90vw] sm:w-[480px] bg-gray-900 border border-yellow-500 rounded-xl shadow-2xl">
+            <div className="p-3 bg-yellow-500 rounded-t-xl text-gray-900 font-extrabold">Admin: Live Match Control</div>
+            <div className="p-4 space-y-3">
+                {disabledReason && (
+                    <div className="text-sm text-red-300 bg-red-900/40 border border-red-700 p-2 rounded">{disabledReason}</div>
+                )}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                    <label className="flex flex-col text-gray-300">Score<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.score} onChange={e=>setField('score', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Wickets<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.wickets} onChange={e=>setField('wickets', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Overs<input type="number" step="0.1" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.overs} onChange={e=>setField('overs', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Target<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.target} onChange={e=>setField('target', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Innings<select className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.innings} onChange={e=>setField('innings', Number(e.target.value))}><option value={1}>1</option><option value={2}>2</option></select></label>
+                    <label className="flex flex-col text-gray-300">Last Ball<select className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.lastBall} onChange={e=>setField('lastBall', Number(e.target.value))}><option value={0}>0</option><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option><option value={6}>6</option><option value={-1}>Wicket</option></select></label>
+                </div>
+                <label className="flex flex-col text-sm text-gray-300">Commentary<textarea rows={2} className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.lastCommentary} onChange={e=>setField('lastCommentary', e.target.value)} /></label>
+                <button
+                    onClick={() => onPush(form)}
+                    disabled={!!disabledReason}
+                    className="w-full py-2 rounded-lg font-bold bg-yellow-500 hover:bg-yellow-400 text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    Push Update to Viewers
+                </button>
+                <div className="text-[10px] text-gray-500 text-center">artifacts/{appId}/public/data/liveMatchFeed/{matchId}</div>
+            </div>
+        </div>
+    );
+};
 
 // --- MAIN APP COMPONENT ---
 const AppContent = () => {
@@ -960,16 +1031,17 @@ const AppContent = () => {
     const [playerList, setPlayerList] = useState(initialPlayerList);
     const [selectedTeamId, setSelectedTeamId] = useState(null);
     const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+    const [adminMode, setAdminMode] = useState(false);
     const { userId, isAuthReady } = useFirebase();
 
-    // Utility function to navigate back to the Teams list from a deeper view
+    const { feed, pushUpdate } = useLiveMatchFeed(MATCH_DATA.id);
+
     const navigateToTeamsList = () => {
         setSelectedTeamId(null);
         setSelectedPlayerId(null);
         setView('TEAMS');
     };
 
-    // Helper to ensure view changes reset the detail pages
     const handleViewChange = (view) => {
         if (view !== 'TEAMS') {
             setSelectedTeamId(null);
@@ -978,7 +1050,6 @@ const AppContent = () => {
         setView(view);
     };
 
-    // --- Live Match Simulation Effect (Frontend Demo) ---
     useEffect(() => {
         let timer;
         const runs = [0, 1, 2, 3, 4, 6];
@@ -989,10 +1060,8 @@ const AppContent = () => {
                 const isSecondInnings = newScore.currentInnings === 2;
                 const target = newScore.target;
 
-                // 1. Simulate the ball outcome
-                const outcome = Math.random() < 0.1 ? -1 : runs[Math.floor(Math.random() * runs.length)]; // 10% chance of Wicket (-1)
+                const outcome = Math.random() < 0.1 ? -1 : runs[Math.floor(Math.random() * runs.length)];
 
-                // 2. Update runs and wickets for the current innings
                 if (isSecondInnings) {
                     if (outcome === -1) newScore.wicketsB++;
                     else newScore.scoreB += outcome;
@@ -1003,7 +1072,6 @@ const AppContent = () => {
                     newScore.lastBall = outcome;
                 }
 
-                // 3. Update Overs
                 let currentOvers = isSecondInnings ? newScore.oversB : newScore.oversA;
                 const ballCount = Math.round((currentOvers * 10) % 10);
                 let newBallCount = ballCount + 1;
@@ -1019,7 +1087,6 @@ const AppContent = () => {
                 if (isSecondInnings) newScore.oversB = newOvers;
                 else newScore.oversA = newOvers;
 
-                // 4. Check for Innings Change / Match End
                 const maxOvers = 20;
 
                 if (newScore.currentInnings === 1 && (newScore.wicketsA === 10 || newScore.oversA >= maxOvers)) {
@@ -1031,7 +1098,7 @@ const AppContent = () => {
                     const ballsRemaining = maxOvers * 6 - (Math.floor(newScore.oversB) * 6 + newBallCount);
 
                     if (newScore.scoreB >= target || newScore.wicketsB === 10 || newScore.oversB >= maxOvers) {
-                        newScore.status = 'Completed'; // End match simulation
+                        newScore.status = 'Completed';
                         clearInterval(timer);
                     } else {
                         newScore.requiredRunRate = (runsNeeded / ballsRemaining) * 6;
@@ -1042,18 +1109,23 @@ const AppContent = () => {
             });
         };
 
-        // Start the simulation loop
         if (score.status !== 'Completed') {
-            timer = setInterval(simulateBall, 1000); // 1-second interval for "sub-second" updates
+            timer = setInterval(simulateBall, 1000);
         }
 
         return () => clearInterval(timer);
     }, [score.status]);
 
+    const disabledReason = !firebaseConfig
+        ? 'Firebase is not configured. Set window.__firebase_config to enable admin updates.'
+        : !isAuthReady
+            ? 'Authenticating...'
+            : null;
+
     const renderView = () => {
         switch (currentView) {
             case 'LIVE':
-                return <LiveMatchView score={score} match={MATCH_DATA} />;
+                return <LiveMatchView score={score} match={MATCH_DATA} liveFeed={feed} />;
             case 'FANTASY':
                 return <FantasyHubView playerList={playerList} setPlayerList={setPlayerList} />;
             case 'TEAMS':
@@ -1071,16 +1143,30 @@ const AppContent = () => {
             case 'NEWS':
                 return <NewsView />;
             default:
-                return <LiveMatchView score={score} match={MATCH_DATA} />;
+                return <LiveMatchView score={score} match={MATCH_DATA} liveFeed={feed} />;
         }
     };
 
     return (
         <div className="min-h-screen bg-gray-900 font-sans">
-            <Header currentView={currentView} setView={handleViewChange} isAuthReady={isAuthReady} userId={userId} />
+            <Header currentView={currentView} setView={handleViewChange} isAuthReady={isAuthReady} userId={userId} adminMode={adminMode} setAdminMode={setAdminMode} />
             <main className="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
                 {renderView()}
             </main>
+            {adminMode && (
+                <AdminControlPanel
+                    matchId={MATCH_DATA.id}
+                    onPush={async (payload) => {
+                        try {
+                            await pushUpdate(payload);
+                        } catch (e) {
+                            console.error(e);
+                            alert('Failed to push update. See console for details.');
+                        }
+                    }}
+                    disabledReason={disabledReason}
+                />
+            )}
         </div>
     );
 };
