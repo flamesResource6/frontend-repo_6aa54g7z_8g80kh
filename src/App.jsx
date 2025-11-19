@@ -42,22 +42,6 @@ const INITIAL_SCORE = {
   lastBall: 0,
 };
 
-const initialPlayerList = [
-  // JJ Players (Team 1)
-  { id: 'JJ01', name: 'A. Shah', role: 'BAT', team: 'JJ', credit: 9.5, form: 50, selected: 0, bio: 'Dynamic opening batsman.' },
-  { id: 'JJ02', name: 'V. Mehta', role: 'BAT', team: 'JJ', credit: 8.0, form: 30, selected: 0, bio: 'Experienced middle-order anchor.' },
-  { id: 'JJ03', name: 'J. Kothari', role: 'AR', team: 'JJ', credit: 10.0, form: 75, selected: 0, bio: 'Premier all-rounder, excellent death bowler.' },
-  // MM Players (Team 2)
-  { id: 'MM01', name: 'R. Oswal', role: 'BAT', team: 'MM', credit: 9.0, form: 60, selected: 0, bio: 'Captain, power hitter.' },
-  { id: 'MM02', name: 'S. Patni', role: 'BWL', team: 'MM', credit: 7.5, form: 40, selected: 0, bio: 'Wily spin bowler.' },
-  { id: 'MM03', name: 'M. Gandhi', role: 'AR', team: 'MM', credit: 10.5, form: 80, selected: 0, bio: 'Impact player, explosive finisher.' },
-  // AA Players (Other Teams - for Smart Suggestions)
-  { id: 'AA01', name: 'D. Jain', role: 'BAT', team: 'AA', credit: 8.5, form: 70, selected: 0, bio: 'Solid top-order bat.' },
-  { id: 'BB01', name: 'K. Soni', role: 'BWL', team: 'BB', credit: 8.2, form: 65, selected: 0, bio: 'Fast bowler with swing.' },
-  { id: 'DD01', name: 'P. Sanghvi', role: 'AR', team: 'DD', credit: 9.8, form: 78, selected: 0, bio: 'Dependable all-rounder.' },
-  { id: 'KK01', name: 'H. Parekh', role: 'BAT', team: 'KK', credit: 7.0, form: 20, selected: 0, bio: 'Young talent, still developing.' },
-];
-
 const DUMMY_POINTS_TABLE = [
     { team: 'Mumbai Mavericks', P: 8, W: 6, L: 2, NRR: +1.250, Pts: 12, accent: ALL_TEAMS[1].accent },
     { team: 'Jaipur Jewels', P: 7, W: 5, L: 2, NRR: +0.890, Pts: 10, accent: ALL_TEAMS[0].accent },
@@ -78,13 +62,6 @@ const DUMMY_CAPS = {
     ]
 };
 
-// Utility function to convert seconds to M:S format
-const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
-};
-
 // --- FIREBASE CONTEXT & INITIALIZATION ---
 
 const FirebaseContext = React.createContext(null);
@@ -98,7 +75,7 @@ const FirebaseProvider = ({ children }) => {
     useEffect(() => {
         if (!firebaseConfig) {
             console.error('Firebase config not found. Running in demo mode.');
-            setIsAuthReady(true); // Allow component to render in demo mode
+            setIsAuthReady(true);
             return;
         }
 
@@ -175,64 +152,6 @@ const useLiveMatchFeed = (matchId) => {
     return { feed, pushUpdate };
 };
 
-// Hook for fetching and updating fantasy team (Private Data)
-const useFantasyTeam = () => {
-    const { db, userId, isAuthReady } = useFirebase();
-    const [fantasyTeam, setFantasyTeam] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const fantasyTeamPath = useMemo(() => {
-        if (!userId) return null;
-        return `artifacts/${appId}/users/${userId}/fantasyTeams/myTeam`;
-    }, [userId]);
-
-    useEffect(() => {
-        if (!db || !isAuthReady || !fantasyTeamPath) {
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
-
-        const docRef = doc(db, fantasyTeamPath);
-
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const storedTeam = docSnap.data().team;
-                if (storedTeam && storedTeam.players) {
-                    setFantasyTeam(storedTeam);
-                } else {
-                    setFantasyTeam(null);
-                }
-            } else {
-                setFantasyTeam(null);
-            }
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching fantasy team:', error);
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [db, isAuthReady, fantasyTeamPath]);
-
-    const saveTeam = useCallback(async (teamData) => {
-        if (!db || !fantasyTeamPath) {
-            console.error('Cannot save team: Database or user ID not ready.');
-            return false;
-        }
-        try {
-            const docRef = doc(db, fantasyTeamPath);
-            await setDoc(docRef, { team: teamData, lastUpdated: serverTimestamp() }, { merge: true });
-            return true;
-        } catch (error) {
-            console.error('Error saving fantasy team:', error);
-            return false;
-        }
-    }, [db, fantasyTeamPath]);
-
-    return { fantasyTeam, isLoading, saveTeam };
-};
-
 // Hook for fetching and updating public match votes
 const useMatchVotes = (matchId) => {
     const { db, userId, isAuthReady } = useFirebase();
@@ -305,8 +224,7 @@ const useMatchVotes = (matchId) => {
 
 const Header = ({ currentView, setView, isAuthReady, userId, adminMode, setAdminMode }) => {
     const navItems = [
-        { name: 'Live Match', view: 'LIVE' },
-        { name: 'Fantasy Hub', view: 'FANTASY' },
+        { name: 'Live', view: 'LIVE' },
         { name: 'Teams', view: 'TEAMS' },
         { name: 'Schedule', view: 'SCHEDULE' },
         { name: 'Stats', view: 'STATS' },
@@ -316,20 +234,23 @@ const Header = ({ currentView, setView, isAuthReady, userId, adminMode, setAdmin
     const displayUserId = userId || 'Authenticating...';
 
     return (
-        <div className="bg-gray-800 shadow-xl fixed top-0 left-0 right-0 z-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-gray-900/80 backdrop-blur-md shadow-2xl fixed top-0 left-0 right-0 z-20 border-b border-white/10">
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
                 <div className="flex justify-between items-center py-3">
-                    <h1 className="text-2xl font-black text-white tracking-wider">JPL <span className="text-yellow-400">9</span></h1>
+                    <h1 className="text-2xl font-black tracking-wider bg-gradient-to-r from-yellow-300 via-rose-300 to-cyan-300 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(255,255,255,0.15)]">
+                        JPL <span className="opacity-80">9</span>
+                    </h1>
                     <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex flex-col items-end text-xs text-gray-400">
+                        <div className="hidden sm:flex flex-col items-end text-[10px] sm:text-xs text-gray-400">
                             <span className="mb-1">{isAuthReady ? 'Authenticated' : 'Connecting...'}</span>
-                            <span className="p-1 px-3 bg-gray-700 rounded-full text-xs break-all" title={userId}>
-                                User ID: <span className="text-yellow-400 font-mono">{displayUserId}</span>
+                            <span className="p-1 px-3 bg-gray-800/60 rounded-full text-[10px] sm:text-xs break-all border border-white/10" title={userId}>
+                                <span className="text-gray-400">User</span> <span className="text-yellow-300 font-mono">{displayUserId}</span>
                             </span>
                         </div>
                         <button
                             onClick={() => setAdminMode(m => !m)}
-                            className={`px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg border transition ${adminMode ? 'bg-yellow-500 text-gray-900 border-yellow-400' : 'bg-gray-700 text-white border-gray-600 hover:bg-gray-600'}`}
+                            className={`px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg border transition shadow-md hover:shadow-xl active:scale-[0.98] ${adminMode ? 'bg-yellow-400/90 text-gray-900 border-yellow-300' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
                             title="Toggle Admin Mode"
                         >
                             {adminMode ? 'Admin: ON' : 'Admin: OFF'}
@@ -341,10 +262,9 @@ const Header = ({ currentView, setView, isAuthReady, userId, adminMode, setAdmin
                         <button
                             key={item.view}
                             onClick={() => setView(item.view)}
-                            className={`px-3 py-2 text-sm font-medium transition duration-150 ease-in-out whitespace-nowrap
-                                ${currentView === item.view
-                                    ? 'text-yellow-400 border-b-2 border-yellow-400'
-                                    : 'text-gray-300 hover:text-white hover:border-b-2 hover:border-gray-500'
+                            className={`px-3 py-2 text-sm font-medium transition duration-200 ease-out rounded-md hover:bg-white/5 ${currentView === item.view
+                                    ? 'text-yellow-300 bg-white/5 border border-yellow-300/30 shadow-[0_0_0_1px_rgba(250,204,21,0.2)]'
+                                    : 'text-gray-300'
                                 }`}
                         >
                             {item.name}
@@ -373,39 +293,45 @@ const LiveScoreboard = ({ score, match }) => {
     const lastBallText = score.lastBall === 4 ? 'FOUR!' : score.lastBall === 6 ? 'SIX!' : score.lastBall === 0 ? 'Dot' : score.lastBall > 0 ? `${score.lastBall} Run` : 'WICKET!';
 
     return (
-        <div className={`p-4 rounded-xl shadow-lg ${battingTeam.color} ${battingTeam.text}`}>
-            <div className="text-xs font-semibold opacity-80 mb-2">{match.status} | JPL Season 9, Match 12 | {match.venue}</div>
-            <div className="flex items-center justify-between mb-4">
-                <div className="text-2xl sm:text-3xl font-extrabold flex items-center space-x-2">
-                    <span>{battingTeam.name}</span>
-                    <span className="text-xl font-light">
-                        {battingScore}-{battingWickets}
-                    </span>
-                </div>
-                <div className="text-lg font-bold">
-                    {battingOvers.toFixed(1)} <span className="text-sm font-light">Overs</span>
-                </div>
-            </div>
+        <div className={`relative overflow-hidden rounded-2xl shadow-2xl p-5 sm:p-6 ${battingTeam.text}`}>
+            <div className="absolute -inset-1 bg-gradient-to-br from-yellow-400/30 via-pink-500/20 to-cyan-400/30 blur-2xl opacity-40" />
+            <div className="relative rounded-xl bg-gradient-to-br from-gray-900/90 to-gray-800/90 border border-white/10">
+                <div className="p-4 sm:p-6">
+                    <div className="text-xs font-semibold opacity-80 mb-2 text-gray-300 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        {match.status} • JPL Season 9, Match 12 • {match.venue}
+                    </div>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="text-2xl sm:text-3xl font-extrabold flex items-center gap-2">
+                            <span className="bg-white/10 px-2 py-1 rounded-md border border-white/10 shadow">{battingTeam.name}</span>
+                            <span className="text-xl font-light text-yellow-300 drop-shadow">{battingScore}-{battingWickets}</span>
+                        </div>
+                        <div className="text-lg font-bold text-white/90">
+                            {battingOvers.toFixed(1)} <span className="text-sm font-light text-gray-400">Overs</span>
+                        </div>
+                    </div>
 
-            {isTargetSet && (
-                <div className="text-sm font-medium mb-3">
-                    Target: {score.target} | Required Run Rate: <span className="font-bold">{score.requiredRunRate.toFixed(2)}</span>
-                </div>
-            )}
+                    {isTargetSet && (
+                        <div className="text-sm font-medium mb-3 text-gray-200">
+                            Target: <span className="text-white font-bold">{score.target}</span> • Required RR: <span className="font-bold text-rose-300">{score.requiredRunRate.toFixed(2)}</span>
+                        </div>
+                    )}
 
-            <div className="flex justify-between text-sm font-medium mb-1 border-t border-gray-600 pt-2">
-                <div className="flex flex-col">
-                    <span className="text-gray-300 text-xs">Batting</span>
-                    <span className="font-bold">{currentBatsman}</span>
-                </div>
-                <div className="flex flex-col items-end">
-                    <span className="text-gray-300 text-xs">Bowling ({bowlingTeam.id})</span>
-                    <span className="font-bold">{currentBowler}</span>
-                </div>
-            </div>
+                    <div className="flex justify-between text-sm font-medium mb-1 border-t border-white/10 pt-3">
+                        <div className="flex flex-col">
+                            <span className="text-gray-400 text-xs">Batting</span>
+                            <span className="font-bold text-white">{currentBatsman}</span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                            <span className="text-gray-400 text-xs">Bowling ({bowlingTeam.id})</span>
+                            <span className="font-bold text-white">{currentBowler}</span>
+                        </div>
+                    </div>
 
-            <div className="mt-4 p-2 rounded-lg bg-gray-900/50 text-center text-yellow-300 font-extrabold text-xl animate-pulse">
-                Last Ball: {lastBallText}
+                    <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-yellow-500/15 via-pink-500/15 to-cyan-500/15 text-center text-yellow-300 font-extrabold text-lg sm:text-xl">
+                        Last Ball: {lastBallText}
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -424,11 +350,10 @@ const FanEngagement = ({ matchId }) => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-xl font-bold text-white border-b border-gray-700 pb-2">Interactive Fan Engagement (Real-Time)</h2>
+            <h2 className="text-xl font-bold text-white border-b border-white/10 pb-2">Interactive Fan Engagement (Real-Time)</h2>
 
-            {/* Fan Poll */}
-            <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-3">Fan Poll: Who will win this match?</h3>
+            <div className="bg-white/5 border border-white/10 p-4 rounded-xl shadow-xl backdrop-blur">
+                <h3 className="text-lg font-semibold text-yellow-300 mb-3">Fan Poll: Who will win this match?</h3>
                 <div className="space-y-2">
                     {pollOptions.map(option => (
                         <div key={option} className="relative">
@@ -437,18 +362,18 @@ const FanEngagement = ({ matchId }) => {
                                 disabled={!!userVote.poll}
                                 className={`w-full py-2 px-4 rounded-lg text-left transition ${userVote.poll === option
                                     ? 'bg-yellow-600 font-bold text-white'
-                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                                    : 'bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10'
                                 }`}
                             >
                                 {option}
                             </button>
                             {!!userVote.poll && (
-                                <div className="absolute inset-0 bg-gray-900/80 rounded-lg flex items-center">
+                                <div className="absolute inset-0 bg-gray-900/70 rounded-lg flex items-center overflow-hidden">
                                     <div
                                         style={{ width: `${getPercentage(fanPolls.poll[option] || 0, totalPollVotes)}%` }}
-                                        className={`h-full ${option.includes('JJ') ? 'bg-pink-600' : 'bg-blue-600'} rounded-l-lg transition-all duration-500`}
+                                        className={`h-full ${option.includes('JJ') ? 'bg-pink-600/70' : 'bg-blue-600/70'} transition-all duration-500`}
                                     ></div>
-                                    <span className="absolute left-2 text-white font-semibold">
+                                    <span className="absolute left-2 text-white font-semibold drop-shadow">
                                         {option} ({getPercentage(fanPolls.poll[option] || 0, totalPollVotes)}%)
                                     </span>
                                 </div>
@@ -459,9 +384,8 @@ const FanEngagement = ({ matchId }) => {
                 {!!userVote.poll && <p className="text-sm text-center mt-3 text-gray-400">Thank you for voting. Total votes: {totalPollVotes}</p>}
             </div>
 
-            {/* Match MVP Voting */}
-            <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-3">Vote for Player of the Match (MVP)</h3>
+            <div className="bg-white/5 border border-white/10 p-4 rounded-xl shadow-xl backdrop-blur">
+                <h3 className="text-lg font-semibold text-yellow-300 mb-3">Vote for Player of the Match (MVP)</h3>
                 <div className="grid grid-cols-2 gap-3">
                     {mvpOptions.map(player => (
                         <div key={player} className="relative">
@@ -470,18 +394,18 @@ const FanEngagement = ({ matchId }) => {
                                 disabled={!!userVote.mvp}
                                 className={`w-full py-2 px-4 rounded-lg text-left transition ${userVote.mvp === player
                                     ? 'bg-green-600 font-bold text-white'
-                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                                    : 'bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10'
                                 }`}
                             >
                                 {player}
                             </button>
                             {!!userVote.mvp && (
-                                <div className="absolute inset-0 bg-gray-900/80 rounded-lg flex items-center">
+                                <div className="absolute inset-0 bg-gray-900/70 rounded-lg flex items-center overflow-hidden">
                                     <div
                                         style={{ width: `${getPercentage(fanPolls.mvp[player] || 0, totalMvpVotes)}%` }}
-                                        className="h-full bg-green-500 rounded-l-lg transition-all duration-500"
+                                        className="h-full bg-green-500/70 transition-all duration-500"
                                     ></div>
-                                    <span className="absolute left-2 text-white font-semibold">
+                                    <span className="absolute left-2 text-white font-semibold drop-shadow">
                                         {player} ({getPercentage(fanPolls.mvp[player] || 0, totalMvpVotes)}%)
                                     </span>
                                 </div>
@@ -496,8 +420,8 @@ const FanEngagement = ({ matchId }) => {
 
 // --- TEAM VIEWS ---
 
-const PlayerProfileView = ({ playerId, setSelectedPlayerId, setSelectedTeamId }) => {
-    const player = initialPlayerList.find(p => p.id === playerId);
+const PlayerProfileView = ({ playerId, setSelectedPlayerId }) => {
+    const player = TEAM_PLAYERS.find(p => p.id === playerId);
     const team = ALL_TEAMS.find(t => t.id === player.team);
 
     if (!player) return <p className="text-red-400">Player not found.</p>;
@@ -506,23 +430,22 @@ const PlayerProfileView = ({ playerId, setSelectedPlayerId, setSelectedTeamId })
         <div className="space-y-6">
             <button
                 onClick={() => setSelectedPlayerId(null)}
-                className="text-yellow-400 hover:text-white transition mb-4 text-sm flex items-center"
+                className="text-yellow-300 hover:text-white transition mb-4 text-sm flex items-center"
             >
-                 &larr; Back to Team Profile
+                 ← Back to Team Profile
             </button>
-            <h2 className={`text-3xl font-black pb-2 flex items-center border-b ${team.accent}`}>
+            <h2 className={`text-3xl font-black pb-2 flex items-center border-b border-white/10`}>
                 <span className={`${team.color} ${team.text} px-3 py-1 rounded-full mr-3 text-sm`}>{team.name}</span>
                 {player.name}
             </h2>
             
-            <div className="grid md:grid-cols-2 gap-6 bg-gray-800 p-6 rounded-xl shadow-lg">
+            <div className="grid md:grid-cols-2 gap-6 bg-white/5 p-6 rounded-xl shadow-xl border border-white/10">
                 <div className="space-y-4">
-                    <p className="text-gray-400">**Player Role:** <span className="font-semibold text-white">{player.role}</span></p>
-                    <p className="text-gray-400">**Current Form Index (FLAMES AI):** <span className="font-extrabold text-green-400 text-xl">{player.form}</span></p>
+                    <p className="text-gray-400">Role: <span className="font-semibold text-white">{player.role}</span></p>
                     <p className="text-gray-300 italic">{player.bio}</p>
                 </div>
                 <div className="space-y-3">
-                    <h3 className="text-xl font-bold text-yellow-400 border-b border-gray-700 pb-1">Career Stats (Placeholder)</h3>
+                    <h3 className="text-xl font-bold text-yellow-300 border-b border-white/10 pb-1">Career Stats (Sample)</h3>
                     <div className="text-sm text-gray-400">
                         <p>Matches: 55 | Runs: 1520 | Wickets: 12</p>
                         <p>Highest Score: 89* | Economy: 7.2</p>
@@ -533,39 +456,48 @@ const PlayerProfileView = ({ playerId, setSelectedPlayerId, setSelectedTeamId })
     );
 };
 
+const TEAM_PLAYERS = [
+  { id: 'JJ01', name: 'A. Shah', role: 'BAT', team: 'JJ', bio: 'Dynamic opening batsman.' },
+  { id: 'JJ02', name: 'V. Mehta', role: 'BAT', team: 'JJ', bio: 'Experienced middle-order anchor.' },
+  { id: 'JJ03', name: 'J. Kothari', role: 'AR', team: 'JJ', bio: 'Premier all-rounder, excellent death bowler.' },
+  { id: 'MM01', name: 'R. Oswal', role: 'BAT', team: 'MM', bio: 'Captain, power hitter.' },
+  { id: 'MM02', name: 'S. Patni', role: 'BWL', team: 'MM', bio: 'Wily spin bowler.' },
+  { id: 'MM03', name: 'M. Gandhi', role: 'AR', team: 'MM', bio: 'Impact player, explosive finisher.' },
+];
+
 const TeamProfileView = ({ teamId, setSelectedTeamId, setSelectedPlayerId }) => {
     const team = ALL_TEAMS.find(t => t.id === teamId);
-    const roster = initialPlayerList.filter(p => p.team === teamId);
+    const roster = TEAM_PLAYERS.filter(p => p.team === teamId);
     const pointsData = DUMMY_POINTS_TABLE.find(p => p.team === team.name);
 
     return (
         <div className="space-y-6">
             <button
                 onClick={() => setSelectedTeamId(null)}
-                className="text-yellow-400 hover:text-white transition mb-4 text-sm flex items-center"
+                className="text-yellow-300 hover:text-white transition mb-4 text-sm flex items-center"
             >
-                 &larr; Back to Teams List
+                 ← Back to Teams List
             </button>
-            <h2 className={`text-3xl font-black pb-2 flex items-center border-b ${team.accent}`}>
+            <h2 className={`text-3xl font-black pb-2 flex items-center border-b border-white/10`}>
                 <span className={`${team.color} ${team.text} px-3 py-1 rounded-full mr-3 text-sm`}>{team.id}</span>
                 {team.name}
             </h2>
             <p className="text-gray-400 italic text-lg">{team.motto}</p>
 
             <div className="grid md:grid-cols-3 gap-6">
-                <div className="md:col-span-1 bg-gray-800 p-4 rounded-xl shadow-lg space-y-3">
-                    <h3 className="text-xl font-bold text-yellow-400">Current Standing</h3>
+                <div className="md:col-span-1 bg-white/5 p-4 rounded-xl shadow-xl space-y-3 border border-white/10">
+                    <h3 className="text-xl font-bold text-yellow-300">Current Standing</h3>
                     <p className="text-gray-300">Played: {pointsData.P} | Wins: {pointsData.W} | NRR: {pointsData.NRR}</p>
                     <p className="text-4xl font-black text-white">{pointsData.Pts} Pts</p>
                 </div>
-                <div className="md:col-span-2 bg-gray-800 p-4 rounded-xl shadow-lg">
-                    <h3 className="text-xl font-bold text-yellow-400 mb-3">Team Roster</h3>
+                <div className="md:col-span-2 bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
+                    <h3 className="text-xl font-bold text-yellow-300 mb-3">Team Roster</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {roster.map(player => (
                             <button
                                 key={player.id}
                                 onClick={() => setSelectedPlayerId(player.id)}
-                                className="bg-gray-700 p-3 rounded-lg text-left hover:bg-gray-600 transition"
+                                className="bg-gray-900/40 p-3 rounded-lg text-left hover:bg-gray-800/60 transition border border-white/10"
                             >
                                 <span className="font-semibold text-white truncate block">{player.name}</span>
                                 <span className="text-xs text-gray-400">{player.role}</span>
@@ -580,18 +512,18 @@ const TeamProfileView = ({ teamId, setSelectedTeamId, setSelectedPlayerId }) => 
 
 const TeamsListView = ({ setSelectedTeamId }) => (
     <div className="space-y-6">
-        <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">JPL Teams</h2>
+        <h2 className="text-3xl font-bold text-white border-b border-white/10 pb-2">JPL Teams</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {ALL_TEAMS.map(team => (
                 <button
                     key={team.id}
                     onClick={() => setSelectedTeamId(team.id)}
-                    className={`p-6 rounded-xl shadow-xl transition transform hover:scale-[1.02] ${team.color} ${team.text} text-left`}
+                    className={`p-6 rounded-xl shadow-xl transition transform hover:scale-[1.02] bg-white/5 border border-white/10 ${team.text} text-left`}
                 >
                     <div className="text-3xl font-black">{team.id}</div>
                     <div className="text-xl font-bold mt-1">{team.name}</div>
-                    <p className="text-sm italic opacity-70 mt-2">{team.motto}</p>
-                    <span className="mt-3 inline-block text-xs font-semibold px-3 py-1 bg-white/20 rounded-full">View Profile &rarr;</span>
+                    <p className="text-sm italic opacity-80 mt-2">{team.motto}</p>
+                    <span className="mt-3 inline-block text-xs font-semibold px-3 py-1 bg-white/10 rounded-full">View Profile →</span>
                 </button>
             ))}
         </div>
@@ -603,8 +535,8 @@ const TeamsListView = ({ setSelectedTeamId }) => (
 const LiveFeedPanel = ({ feed }) => {
     if (!feed) return null;
     return (
-        <div className="bg-gray-800 p-4 rounded-lg shadow-lg border border-yellow-500">
-            <h3 className="text-lg font-semibold text-yellow-400 mb-3">Live Feed (Firestore)</h3>
+        <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
+            <h3 className="text-lg font-semibold text-yellow-300 mb-3">Live Feed (Firestore)</h3>
             <div className="grid sm:grid-cols-3 gap-3 text-sm text-gray-200">
                 <div>Score: <span className="font-bold">{feed.score ?? '-'}</span></div>
                 <div>Wickets: <span className="font-bold">{feed.wickets ?? '-'}</span></div>
@@ -628,264 +560,44 @@ const LiveMatchView = ({ score, match, liveFeed }) => (
         <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
                 <FanEngagement matchId={match.id} />
-                <div className="bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
                     <h3 className="text-lg font-semibold text-white mb-2">Social Stream (#JPL9)</h3>
-                    <p className="text-sm text-gray-500">Twitter/X feed placeholder for official JPL content and fan chatter.</p>
-                    <div className="h-24 bg-gray-700/50 rounded mt-2 flex items-center justify-center text-gray-500 text-xs">Live feed content goes here...</div>
+                    <p className="text-sm text-gray-400">Twitter/X feed placeholder for official JPL content and fan chatter.</p>
+                    <div className="h-24 bg-gray-900/40 rounded mt-2 flex items-center justify-center text-gray-500 text-xs">Live feed content goes here...</div>
                 </div>
             </div>
             <div className="space-y-4">
-                <div className="bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
                     <h3 className="text-lg font-semibold text-white mb-2">Live Commentary</h3>
                     <div className="h-64 overflow-y-auto space-y-2 text-sm text-gray-300">
-                        <p><span className="font-bold text-yellow-400">1.2</span> - <span className="text-green-400">FOUR!</span> A. Shah drives wide of mid-off.</p>
-                        <p><span className="font-bold text-yellow-400">1.1</span> - Dot ball. Excellent line from S. Patni.</p>
-                        <p><span className="font-bold text-yellow-400">0.6</span> - Single. V. Mehta rotates the strike.</p>
-                        <p><span className="font-bold text-yellow-400">0.5</span> - <span className="text-red-400">WICKET!</span> V. Mehta run out. Oh dear, a mix-up!</p>
+                        <p><span className="font-bold text-yellow-300">1.2</span> - <span className="text-green-400">FOUR!</span> A. Shah drives wide of mid-off.</p>
+                        <p><span className="font-bold text-yellow-300">1.1</span> - Dot ball. Excellent line from S. Patni.</p>
+                        <p><span className="font-bold text-yellow-300">0.6</span> - Single. V. Mehta rotates the strike.</p>
+                        <p><span className="font-bold text-yellow-300">0.5</span> - <span className="text-red-400">WICKET!</span> V. Mehta run out. Oh dear, a mix-up!</p>
                         <p className="text-xs text-gray-500 text-center">--- Innings Break ---</p>
                     </div>
                 </div>
-                <div className="bg-gray-800 p-4 rounded-lg">
+                <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
                     <h3 className="text-lg font-semibold text-white mb-2">Video Highlights (Placeholder)</h3>
-                    <div className="h-40 bg-gray-700/50 rounded flex items-center justify-center text-gray-500 text-xs">Video Player: Match Highlights</div>
+                    <div className="h-40 bg-gray-900/40 rounded flex items-center justify-center text-gray-500 text-xs">Video Player: Match Highlights</div>
                 </div>
             </div>
         </div>
     </div>
 );
 
-const FantasyHubView = ({ playerList, setPlayerList }) => {
-    const { fantasyTeam, isLoading: isFantasyLoading, saveTeam } = useFantasyTeam();
-    const { isAuthReady, userId } = useFirebase();
-    const [teamName, setTeamName] = useState(fantasyTeam?.name || 'My JPL XI');
-    const [maxCredits] = useState(100);
-    const [alertMessage, setAlertMessage] = useState('');
-
-    useEffect(() => {
-        if (fantasyTeam) {
-            setTeamName(fantasyTeam.name);
-            setPlayerList(fantasyTeam.players);
-        } else {
-            setPlayerList(initialPlayerList.map(p => ({ ...p, selected: 0 })));
-            setTeamName('My JPL XI');
-        }
-    }, [fantasyTeam, setPlayerList]);
-
-    const togglePlayer = useCallback((id) => {
-        setPlayerList(prevList => {
-            const player = prevList.find(p => p.id === id);
-            if (!player) return prevList;
-
-            const isSelected = player.selected === 1;
-            const currentSelectedCount = prevList.filter(p => p.selected === 1).length;
-
-            if (isSelected) {
-                return prevList.map(p => p.id === id ? { ...p, selected: 0 } : p);
-            } else if (currentSelectedCount < 11) {
-                return prevList.map(p => p.id === id ? { ...p, selected: 1 } : p);
-            } else {
-                setAlertMessage('Maximum of 11 players reached.');
-                setTimeout(() => setAlertMessage(''), 3000);
-                return prevList;
-            }
-        });
-    }, [setPlayerList]);
-
-    const toggleCaptain = (id, role) => {
-        setPlayerList(prevList => {
-            let newPlayers = prevList.map(p => ({ ...p }));
-            const targetPlayer = newPlayers.find(p => p.id === id);
-
-            if (!targetPlayer || targetPlayer.selected !== 1) return prevList;
-
-            if (targetPlayer.role === role) {
-                targetPlayer.role = initialPlayerList.find(p => p.id === id).role;
-            } else {
-                newPlayers = newPlayers.map(p => {
-                    if (p.role === role) {
-                        return { ...p, role: initialPlayerList.find(i => i.id === p.id).role };
-                    }
-                    return p;
-                });
-                newPlayers.find(p => p.id === id).role = role;
-            }
-
-            return newPlayers;
-        });
-    };
-    
-    const selectedPlayers = playerList.filter(p => p.selected === 1);
-    const totalCreditsSpent = selectedPlayers.reduce((sum, p) => sum + p.credit, 0).toFixed(1);
-    const remainingCredits = (maxCredits - totalCreditsSpent).toFixed(1);
-
-    const aiCvcSuggestion = useMemo(() => {
-        const eligiblePlayers = selectedPlayers.filter(p => p.role !== 'CAP' && p.role !== 'VC');
-        if (eligiblePlayers.length < 2) return { cap: 'N/A', vc: 'N/A' };
-
-        const sortedByForm = [...eligiblePlayers].sort((a, b) => b.form - a.form);
-        const cap = sortedByForm[0];
-        const vc = sortedByForm[1];
-
-        return {
-            cap: cap ? cap.name : 'N/A',
-            vc: vc ? vc.name : 'N/A',
-        };
-    }, [selectedPlayers]);
-
-    const showAiSuggestion = () => {
-        setAlertMessage(`FLAMES AI Suggests: Captain: ${aiCvcSuggestion.cap}, Vice-Captain: ${aiCvcSuggestion.vc}`);
-        setTimeout(() => setAlertMessage(''), 5000);
-    };
-
-
-    const handleSaveTeam = async () => {
-        if (!isAuthReady || !userId) {
-            setAlertMessage('Authentication is not complete. Cannot save team.');
-            return;
-        }
-        if (selectedPlayers.length !== 11) {
-            setAlertMessage('Team must have exactly 11 players to save!');
-            return;
-        }
-        const success = await saveTeam({ name: teamName, players: playerList });
-        if (success) {
-            setAlertMessage('Team saved successfully!');
-        } else {
-            setAlertMessage('Error saving team. Check console for details.');
-        }
-        setTimeout(() => setAlertMessage(''), 3000);
-    };
-
-    const smartFillTeam = () => {
-        const sortedPlayers = [...playerList].sort((a, b) => b.form - a.form);
-        const newTeam = playerList.map(p => ({ ...p, selected: 0 }));
-        let currentCredits = 0;
-        let selectedCount = 0;
-
-        for (const player of sortedPlayers) {
-            if (selectedCount < 11 && currentCredits + player.credit <= maxCredits) {
-                const index = newTeam.findIndex(p => p.id === player.id);
-                if (index !== -1) {
-                    newTeam[index].selected = 1;
-                    currentCredits += player.credit;
-                    selectedCount++;
-                }
-            }
-        }
-        setPlayerList(newTeam);
-        setAlertMessage('Smart Fill applied based on current form and value!');
-        setTimeout(() => setAlertMessage(''), 3000);
-    };
-
-    if (!isAuthReady) {
-        return <div className="text-center py-10 text-xl text-yellow-400">Connecting to FLAMES AI Platform...</div>;
-    }
-
-    return (
-        <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">Fantasy Hub</h2>
-            <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
-                <div className="flex justify-between items-center mb-4">
-                    <input
-                        type="text"
-                        value={teamName}
-                        onChange={(e) => setTeamName(e.target.value)}
-                        className="text-2xl font-bold bg-transparent text-white border-b border-gray-600 focus:border-yellow-400 outline-none"
-                    />
-                    <button
-                        onClick={handleSaveTeam}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition"
-                    >
-                        {isFantasyLoading ? 'Loading...' : 'Save Team'}
-                    </button>
-                </div>
-                {alertMessage && (
-                    <div className="p-2 mb-3 bg-yellow-500 text-gray-900 rounded-lg text-sm font-medium text-center">{alertMessage}</div>
-                )}
-                <div className="grid grid-cols-3 text-center text-sm font-medium">
-                    <div className="p-2 rounded-l-lg bg-gray-700 text-gray-300">Players: <span className="text-white font-bold">{selectedPlayers.length}/11</span></div>
-                    <div className="p-2 bg-gray-700 text-gray-300">Spent: <span className="text-white font-bold">{totalCreditsSpent}</span></div>
-                    <div className={`p-2 rounded-r-lg font-bold ${remainingCredits < 0 ? 'bg-red-600' : 'bg-green-600'} text-white`}>
-                        Remaining: {remainingCredits}
-                    </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <button onClick={smartFillTeam} className="bg-yellow-600 hover:bg-yellow-700 text-gray-900 text-sm font-semibold py-2 px-4 rounded-full transition">
-                        FLAMES AI: Smart Fill XI
-                    </button>
-                    <button 
-                        onClick={showAiSuggestion}
-                        disabled={selectedPlayers.length < 2}
-                        className="bg-purple-600 disabled:bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold py-2 px-4 rounded-full transition"
-                    >
-                        FLAMES AI: C/VC Suggestion
-                    </button>
-                </div>
-            </div>
-
-            <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
-                <h3 className="text-xl font-bold text-yellow-400 mb-4">Player Selection</h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {playerList.map(player => (
-                        <div key={player.id} className={`flex items-center p-3 rounded-lg transition duration-200 ${player.selected === 1 ? 'bg-gray-700 border border-yellow-400' : 'bg-gray-900/50'}`}>
-                            <div className="flex-1">
-                                <span className="font-semibold text-white">{player.name} ({player.team})</span>
-                                <span className="text-xs ml-2 text-gray-400">| {player.role} | Credits: {player.credit}</span>
-                                <span className="text-xs ml-2 text-green-400">| Form: {player.form}</span>
-                            </div>
-                            <button
-                                onClick={() => togglePlayer(player.id)}
-                                className={`text-sm py-1 px-3 rounded-full font-semibold transition ${player.selected === 1 ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white mr-2`}
-                            >
-                                {player.selected === 1 ? 'Remove' : 'Pick'}
-                            </button>
-                            {player.selected === 1 && (
-                                <>
-                                <button
-                                    onClick={() => toggleCaptain(player.id, 'CAP')}
-                                    className={`text-xs py-1 px-2 rounded-full font-bold transition ${player.role === 'CAP' ? 'bg-yellow-400 text-gray-900' : 'bg-gray-600 hover:bg-gray-500 text-white'}`}
-                                >
-                                    C
-                                </button>
-                                <button
-                                    onClick={() => toggleCaptain(player.id, 'VC')}
-                                    className={`text-xs py-1 px-2 rounded-full font-bold ml-1 transition ${player.role === 'VC' ? 'bg-yellow-400 text-gray-900' : 'bg-gray-600 hover:bg-gray-500 text-white'}`}
-                                >
-                                    VC
-                                </button>
-                                </>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-            
-            <div className="p-4 bg-gray-800 rounded-lg">
-                <h3 className="text-xl font-bold text-white mb-2">Personalized Weekly Summary</h3>
-                <p className="text-sm text-gray-400">FLAMES AI Report (Sample)</p>
-                <ul className="text-sm mt-2 space-y-1 text-gray-300 list-disc pl-5">
-                    <li><span className="text-green-400 font-semibold">Strengths:</span> Your team's middle order (M. Gandhi) is currently outperforming their salary projections by 15%.</li>
-                    <li><span className="text-red-400 font-semibold">Weaknesses:</span> K. Soni (BB) has a strong track record against BAT heavy lineups; consider a replacement for this week's match against AA.</li>
-                    <li><span className="text-yellow-400 font-semibold">Recommendation:</span> High-risk, high-reward transfer: Swap J. Kothari for P. Sanghvi based on venue-specific data.</li>
-                </ul>
-            </div>
-        </div>
-    );
-};
-
 const ScheduleView = () => (
     <div className="space-y-6">
-        <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">JPL Season 9 Schedule & Results</h2>
-        <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
-            <h3 className="text-xl font-semibold text-yellow-400 mb-4">Upcoming Fixtures</h3>
+        <h2 className="text-3xl font-bold text-white border-b border-white/10 pb-2">JPL Season 9 Schedule & Results</h2>
+        <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
+            <h3 className="text-xl font-semibold text-yellow-300 mb-4">Upcoming Fixtures</h3>
             <div className="space-y-3">
                 {[
                     { date: 'Nov 20', match: 'AA vs BB', venue: 'Indore', status: 'Upcoming', team: ALL_TEAMS[2].accent },
                     { date: 'Nov 21', match: 'DD vs KK', venue: 'Pune', status: 'Upcoming', team: ALL_TEAMS[3].accent },
                     { date: 'Nov 22', match: 'JJ vs DD', venue: 'Mumbai', status: 'Upcoming', team: ALL_TEAMS[0].accent },
                 ].map((item, index) => (
-                    <div key={index} className={`flex justify-between items-center p-3 rounded-lg bg-gray-900/50 border-l-4 ${item.team}`}>
+                    <div key={index} className={`flex justify-between items-center p-3 rounded-lg bg-gray-900/40 border-l-4 ${item.team}`}>
                         <div className="text-gray-300">{item.date}</div>
                         <div className="text-white font-semibold">{item.match}</div>
                         <div className="text-gray-400 text-sm">{item.venue}</div>
@@ -893,14 +605,14 @@ const ScheduleView = () => (
                 ))}
             </div>
         </div>
-        <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
-            <h3 className="text-xl font-semibold text-yellow-400 mb-4">Completed Results</h3>
+        <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
+            <h3 className="text-xl font-semibold text-yellow-300 mb-4">Completed Results</h3>
             <div className="space-y-3">
                 {[
                     { result: 'MM beat AA by 5 wickets', venue: 'Delhi', team: ALL_TEAMS[1].accent },
                     { result: 'BB beat KK by 10 runs', venue: 'Bangalore', team: ALL_TEAMS[5].accent },
                 ].map((item, index) => (
-                    <div key={index} className={`flex justify-between items-center p-3 rounded-lg bg-gray-900/50 border-l-4 ${item.team}`}>
+                    <div key={index} className={`flex justify-between items-center p-3 rounded-lg bg-gray-900/40 border-l-4 ${item.team}`}>
                         <div className="text-white font-semibold">{item.result}</div>
                         <div className="text-gray-400 text-sm">{item.venue}</div>
                     </div>
@@ -912,13 +624,13 @@ const ScheduleView = () => (
 
 const StatsView = () => (
     <div className="space-y-8">
-        <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">Statistics Hub</h2>
+        <h2 className="text-3xl font-bold text-white border-b border-white/10 pb-2">Statistics Hub</h2>
         
-        <div className="bg-gray-800 p-4 rounded-xl shadow-lg overflow-x-auto">
-            <h3 className="text-xl font-semibold text-yellow-400 mb-4">Points Table</h3>
+        <div className="bg-white/5 p-4 rounded-xl shadow-xl overflow-x-auto border border-white/10">
+            <h3 className="text-xl font-semibold text-yellow-300 mb-4">Points Table</h3>
             <table className="min-w-full text-left text-sm text-gray-300">
                 <thead>
-                    <tr className="bg-gray-700 text-white uppercase tracking-wider">
+                    <tr className="bg-white/5 text-white uppercase tracking-wider">
                         <th className="py-2 px-4">Team</th>
                         <th className="py-2 px-4">P</th>
                         <th className="py-2 px-4">W</th>
@@ -929,7 +641,7 @@ const StatsView = () => (
                 </thead>
                 <tbody>
                     {DUMMY_POINTS_TABLE.map((team, index) => (
-                        <tr key={team.team} className={`border-b border-gray-700 hover:bg-gray-700/50 ${team.accent.replace('border', 'text')}`}>
+                        <tr key={team.team} className={`border-b border-white/10 hover:bg-white/5`}>
                             <td className="py-2 px-4 font-semibold">{index + 1}. {team.team}</td>
                             <td className="py-2 px-4">{team.P}</td>
                             <td className="py-2 px-4">{team.W}</td>
@@ -950,17 +662,17 @@ const StatsView = () => (
 );
 
 const Leaderboard = ({ title, data, valueKey, unit, capColor }) => (
-    <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
+    <div className="bg-white/5 p-4 rounded-xl shadow-xl border border-white/10">
         <h3 className={`text-xl font-bold text-white mb-4 flex items-center`}>
             <span className={`inline-block w-3 h-3 rounded-full mr-2 ${capColor}`}></span>
             {title}
         </h3>
         <ul className="space-y-3">
             {data.map((player, index) => (
-                <li key={player.name} className="flex justify-between items-center p-3 bg-gray-900/50 rounded-lg">
-                    <span className={`text-lg font-bold mr-2 ${player.teamColor.replace('bg-', 'text-')}`}>{index + 1}.</span>
+                <li key={player.name} className="flex justify-between items-center p-3 bg-gray-900/40 rounded-lg">
+                    <span className="text-lg font-bold mr-2 text-white/70">{index + 1}.</span>
                     <span className="flex-1 text-gray-200 font-medium">{player.name}</span>
-                    <span className="text-yellow-400 font-bold">{player[valueKey]} {unit}</span>
+                    <span className="text-yellow-300 font-bold">{player[valueKey]} {unit}</span>
                 </li>
             ))}
         </ul>
@@ -969,7 +681,7 @@ const Leaderboard = ({ title, data, valueKey, unit, capColor }) => (
 
 const NewsView = () => (
     <div className="space-y-6">
-        <h2 className="text-3xl font-bold text-white border-b border-yellow-400 pb-2">Official JPL News & Editorials</h2>
+        <h2 className="text-3xl font-bold text-white border-b border-white/10 pb-2">Official JPL News & Editorials</h2>
         <div className="grid md:grid-cols-2 gap-6">
             {[
                 { title: 'Exclusive Interview: J. Kothari on Team Balance', excerpt: "The star all-rounder discusses the team's strategy and the challenges of a packed season.", color: 'bg-pink-700' },
@@ -977,11 +689,11 @@ const NewsView = () => (
                 { title: 'FLAMES AI Feature: Predicting the Playoff Picture', excerpt: 'Our analytics engine breaks down the probability of each team making it to the final four.', color: 'bg-orange-700' },
                 { title: 'Gallery: Top Catches of the Week', excerpt: 'Relive the stunning fielding moments from the last seven days of JPL action.', color: 'bg-red-700' },
             ].map((article, index) => (
-                <div key={index} className={`rounded-xl shadow-xl overflow-hidden ${article.color}`}>
+                <div key={index} className={`rounded-xl shadow-xl overflow-hidden ${article.color} border border-white/10`}>
                     <div className="p-4">
                         <h3 className="text-xl font-bold text-white mb-2">{article.title}</h3>
                         <p className="text-sm text-gray-200 mb-4">{article.excerpt}</p>
-                        <a href="#" className="text-sm font-semibold text-yellow-300 hover:text-white transition">Read Full Article &rarr;</a>
+                        <a href="#" className="text-sm font-semibold text-yellow-300 hover:text-white transition">Read Full Article →</a>
                     </div>
                 </div>
             ))}
@@ -996,25 +708,25 @@ const AdminControlPanel = ({ matchId, onPush, disabledReason }) => {
     const setField = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
     return (
-        <div className="fixed bottom-4 right-4 z-20 w-[90vw] sm:w-[480px] bg-gray-900 border border-yellow-500 rounded-xl shadow-2xl">
-            <div className="p-3 bg-yellow-500 rounded-t-xl text-gray-900 font-extrabold">Admin: Live Match Control</div>
+        <div className="fixed bottom-4 right-4 z-20 w-[92vw] sm:w-[520px] bg-gray-900/95 border border-yellow-400/50 rounded-xl shadow-2xl backdrop-blur">
+            <div className="p-3 bg-gradient-to-r from-yellow-400 to-rose-400 rounded-t-xl text-gray-900 font-extrabold">Admin: Live Match Control</div>
             <div className="p-4 space-y-3">
                 {disabledReason && (
                     <div className="text-sm text-red-300 bg-red-900/40 border border-red-700 p-2 rounded">{disabledReason}</div>
                 )}
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                    <label className="flex flex-col text-gray-300">Score<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.score} onChange={e=>setField('score', Number(e.target.value))} /></label>
-                    <label className="flex flex-col text-gray-300">Wickets<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.wickets} onChange={e=>setField('wickets', Number(e.target.value))} /></label>
-                    <label className="flex flex-col text-gray-300">Overs<input type="number" step="0.1" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.overs} onChange={e=>setField('overs', Number(e.target.value))} /></label>
-                    <label className="flex flex-col text-gray-300">Target<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.target} onChange={e=>setField('target', Number(e.target.value))} /></label>
-                    <label className="flex flex-col text-gray-300">Innings<select className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.innings} onChange={e=>setField('innings', Number(e.target.value))}><option value={1}>1</option><option value={2}>2</option></select></label>
-                    <label className="flex flex-col text-gray-300">Last Ball<select className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.lastBall} onChange={e=>setField('lastBall', Number(e.target.value))}><option value={0}>0</option><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option><option value={6}>6</option><option value={-1}>Wicket</option></select></label>
+                    <label className="flex flex-col text-gray-300">Score<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.score} onChange={e=>setField('score', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Wickets<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.wickets} onChange={e=>setField('wickets', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Overs<input type="number" step="0.1" className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.overs} onChange={e=>setField('overs', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Target<input type="number" className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.target} onChange={e=>setField('target', Number(e.target.value))} /></label>
+                    <label className="flex flex-col text-gray-300">Innings<select className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.innings} onChange={e=>setField('innings', Number(e.target.value))}><option value={1}>1</option><option value={2}>2</option></select></label>
+                    <label className="flex flex-col text-gray-300">Last Ball<select className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.lastBall} onChange={e=>setField('lastBall', Number(e.target.value))}><option value={0}>0</option><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option><option value={6}>6</option><option value={-1}>Wicket</option></select></label>
                 </div>
-                <label className="flex flex-col text-sm text-gray-300">Commentary<textarea rows={2} className="mt-1 px-2 py-1 rounded bg-gray-800" value={form.lastCommentary} onChange={e=>setField('lastCommentary', e.target.value)} /></label>
+                <label className="flex flex-col text-sm text-gray-300">Commentary<textarea rows={2} className="mt-1 px-2 py-1 rounded bg-gray-800 border border-white/10" value={form.lastCommentary} onChange={e=>setField('lastCommentary', e.target.value)} /></label>
                 <button
                     onClick={() => onPush(form)}
                     disabled={!!disabledReason}
-                    className="w-full py-2 rounded-lg font-bold bg-yellow-500 hover:bg-yellow-400 text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full py-2 rounded-lg font-bold bg-yellow-400 hover:bg-yellow-300 text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed shadow"
                 >
                     Push Update to Viewers
                 </button>
@@ -1028,19 +740,12 @@ const AdminControlPanel = ({ matchId, onPush, disabledReason }) => {
 const AppContent = () => {
     const [currentView, setView] = useState('LIVE');
     const [score, setScore] = useState(INITIAL_SCORE);
-    const [playerList, setPlayerList] = useState(initialPlayerList);
     const [selectedTeamId, setSelectedTeamId] = useState(null);
     const [selectedPlayerId, setSelectedPlayerId] = useState(null);
     const [adminMode, setAdminMode] = useState(false);
     const { userId, isAuthReady } = useFirebase();
 
     const { feed, pushUpdate } = useLiveMatchFeed(MATCH_DATA.id);
-
-    const navigateToTeamsList = () => {
-        setSelectedTeamId(null);
-        setSelectedPlayerId(null);
-        setView('TEAMS');
-    };
 
     const handleViewChange = (view) => {
         if (view !== 'TEAMS') {
@@ -1126,11 +831,9 @@ const AppContent = () => {
         switch (currentView) {
             case 'LIVE':
                 return <LiveMatchView score={score} match={MATCH_DATA} liveFeed={feed} />;
-            case 'FANTASY':
-                return <FantasyHubView playerList={playerList} setPlayerList={setPlayerList} />;
             case 'TEAMS':
                 if (selectedPlayerId) {
-                    return <PlayerProfileView playerId={selectedPlayerId} setSelectedPlayerId={setSelectedPlayerId} setSelectedTeamId={setSelectedTeamId} />;
+                    return <PlayerProfileView playerId={selectedPlayerId} setSelectedPlayerId={setSelectedPlayerId} />;
                 }
                 if (selectedTeamId) {
                     return <TeamProfileView teamId={selectedTeamId} setSelectedTeamId={setSelectedTeamId} setSelectedPlayerId={setSelectedPlayerId} />;
@@ -1148,9 +851,14 @@ const AppContent = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 font-sans">
+        <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-900 to-black text-white">
             <Header currentView={currentView} setView={handleViewChange} isAuthReady={isAuthReady} userId={userId} adminMode={adminMode} setAdminMode={setAdminMode} />
-            <main className="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
+            <main className="relative max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
+                <div className="absolute -z-10 inset-0 opacity-30 pointer-events-none">
+                    <div className="absolute -top-20 -left-20 w-72 h-72 bg-pink-500/20 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute top-1/3 -right-10 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-80 h-80 bg-yellow-400/10 rounded-full blur-3xl"></div>
+                </div>
                 {renderView()}
             </main>
             {adminMode && (
